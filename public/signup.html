@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Inscription</title>
+    <link rel="stylesheet" href="./CSS/normalize.css">
+    <link rel="stylesheet" href="./CSS/style.css">
+</head>
+
+<body>
+    <h2>Inscription</h2>
+    <form id="signupForm" action="/signup" method="POST">
+        <input type="text" id="name" name="name" placeholder="Nom d'utilisateur" required>
+        <input type="email" id="email" name="email" placeholder="Email" required>
+        <input type="password" id="password" name="password" placeholder="Mot de passe" required>
+        <button type="submit">S'inscrire</button>
+    </form>
+    <p>Déjà inscrit ? <a href="login.html">Se connecter</a></p>
+</body>
+
+</html>
