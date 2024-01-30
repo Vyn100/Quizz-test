@@ -25,6 +25,10 @@ app.get('/login', (req, res) => {
 app.get('/signup', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'signup.html'));
 });
+// Route GET pour la page de quizz, renvoie le fichier HTML de quizz
+app.get('/quizz', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'quizz.html'));
+});
 
 // Route pour traiter la soumission du formulaire d'inscription
 app.post('/signup', async (req, res) => {
@@ -62,7 +66,8 @@ app.post('/login', async (req, res) => {
 
       if (isValid) {
         // Utilisateur authentifié
-        res.json({ success: true }); // Envoi d'une réponse JSON indiquant le succès
+        // res.json({ success: true }); // Envoi d'une réponse JSON indiquant le succès
+        res.redirect('/quizz');
         console.log("Connexion réussie normalement");
       } else {
         // Mot de passe incorrect
