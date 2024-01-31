@@ -5,11 +5,30 @@ const bcrypt = require('bcrypt');                 // Module de hachage de mot de
 const db = require('./db/db');                    // Module pour interagir avec la base de données
 const app = express();                            // Initialisation de l'application Express
 const port = 3000;                                // Numéro de port sur lequel le serveur écoutera
+const session = require('express-session');
+
+app.use(session({
+  secret: 'votre_secret', // Choisissez un secret fort
+  resave: false,
+  saveUninitialized: true
+}));
 
 // Configuration de l'application
 app.use(express.json());                          // Middleware pour analyser les données JSON dans les requêtes
 app.use(express.urlencoded({ extended: true }));  // Middleware pour analyser les données de formulaire URL encodé
 app.use(express.static('public'));                // Middleware pour servir des fichiers statiques depuis le répertoire 'public'
+
+
+app.get('/favicon.ico', (req, res) => res.status(204)); // Envoie une réponse 204 No Content
+
+app.get('/api/get-user-id', (req, res) => {
+  if (req.session.userId) {
+    res.json({ userId: req.session.userId });
+  } else {
+    res.status(401).send('Utilisateur non authentifié');
+  }
+});
+
 
 // Route de l'accueil, redirige vers la page de connexion
 app.get('/', (req, res) => {
@@ -60,13 +79,14 @@ app.post('/login', async (req, res) => {
     console.log("Utilisateur trouvé :", user.rows[0]);
     console.log("Mot de passe fourni :", password);
     console.log("Résultat de la requête :", user.rows);
-    
+
     if (user.rows.length > 0) {
       const isValid = await bcrypt.compare(password, user.rows[0].mot_de_passe); // Vérification du mot de passe haché
 
       if (isValid) {
         // Utilisateur authentifié
         // res.json({ success: true }); // Envoi d'une réponse JSON indiquant le succès
+        req.session.userId = user.rows[0].id; // Stocker l'ID de l'utilisateur dans la session
         res.redirect('/quizz');
         console.log("Connexion réussie normalement");
       } else {
@@ -97,6 +117,55 @@ app.get('/utilisateur', async (req, res) => {
     res.status(500).send('Erreur interne du serveur');
   }
 });
+
+app.get('/api/questions', async (req, res) => {
+  try {
+    const questions = await db.query('SELECT * FROM Questions');
+    res.json(questions.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Erreur serveur');
+  }
+});
+
+// Route pour mettre à jour le score de l'utilisateur
+app.post('/api/update-score', async (req, res) => {
+  try {
+    const { userId, score } = req.body;
+
+    // Récupérer le score actuel de l'utilisateur
+    const result = await db.query('SELECT score FROM Utilisateurs WHERE id = $1', [userId]);
+    const currentScore = result.rows[0].score;
+
+    // Mettre à jour le score uniquement s'il est supérieur au score actuel
+    if (score > currentScore) {
+      await db.query('UPDATE Utilisateurs SET score = $1 WHERE id = $2', [score, userId]);
+      res.json({ message: 'Score mis à jour avec succès' });
+    } else {
+      res.json({ message: 'Le score n\'a pas été mis à jour car il est inférieur au score actuel' });
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Erreur lors de la mise à jour du score');
+  }
+});
+
+app.get('/api/get-user-score', async (req, res) => {
+  if (req.session.userId) {
+    try {
+      const result = await db.query('SELECT score FROM Utilisateurs WHERE id = $1', [req.session.userId]);
+      const userScore = result.rows[0].score;
+      res.json({ score: userScore });
+    } catch (err) {
+      console.error(err);
+      res.status(500).send('Erreur lors de la récupération du score');
+    }
+  } else {
+    res.status(401).send('Utilisateur non authentifié');
+  }
+});
+
+
 
 // Lancement du serveur sur le port spécifié
 app.listen(port, () => {
