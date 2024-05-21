@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Gestion des Questions et Utilisateurs</title>
+    <link rel="stylesheet" href="./CSS/normalize.css">
+    <link rel="stylesheet" href="./CSS/style.css">
+</head>
+
+<body>
+    <h1>Admin - Gestion des Questions</h1>
+    <form id="add-question-form">
+        <input type="text" id="question" placeholder="Question" required>
+        <input type="text" id="reponse-correcte" placeholder="Réponse Correcte" required>
+        <input type="text" id="fausse-reponse-1" placeholder="Fausse Réponse 1" required>
+        <input type="text" id="fausse-reponse-2" placeholder="Fausse Réponse 2" required>
+        <input type="text" id="fausse-reponse-3" placeholder="Fausse Réponse 3" required>
+        <button type="submit">Ajouter Question</button>
+    </form>
+    <ul id="questions-list"></ul>
+
+    <div id="edit-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Modifier Question</h2>
+            <form id="edit-question-form">
+                <input type="hidden" id="edit-question-id">
+                <input type="text" id="edit-question" placeholder="Question" required>
+                <input type="text" id="edit-reponse-correcte" placeholder="Réponse Correcte" required>
+                <input type="text" id="edit-fausse-reponse-1" placeholder="Fausse Réponse 1" required>
+                <input type="text" id="edit-fausse-reponse-2" placeholder="Fausse Réponse 2" required>
+                <input type="text" id="edit-fausse-reponse-3" placeholder="Fausse Réponse 3" required>
+                <button type="submit">Modifier Question</button>
+            </form>
+        </div>
+    </div>
+
+    <h1>Admin - Gestion des Utilisateurs</h1>
+    <ul id="users-list"></ul>
+    <a href="/quizz">Retour au Quizz</a>
+
+    <script src="./admin.js"></script>
+</body>
+
+</html>

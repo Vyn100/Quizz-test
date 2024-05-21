@@ -19,84 +19,71 @@ app.use(express.json());                          // Middleware pour analyser le
 app.use(express.urlencoded({ extended: true }));  // Middleware pour analyser les données de formulaire URL encodé
 app.use(express.static('public'));                // Middleware pour servir des fichiers statiques depuis le répertoire 'public'
 
+// Route pour gérer la déconnexion
+app.get('/logout', (req, res) => {
+  req.session.destroy(err => {
+    if (err) {
+      return res.status(500).send('Erreur lors de la déconnexion');
+    }
+    res.redirect('/login');
+  });
+});
+
 // Route pour gérer la demande du fichier favicon.ico
 app.get('/favicon.ico', (req, res) => res.status(204));
 
 // Route pour obtenir l'ID de l'utilisateur à partir de la session
-app.get('/api/get-user-id', (req, res) => {
-
-  // Vérifie si l'ID de l'utilisateur existe dans la session
+app.get('/api/get-user-id', async (req, res) => {
   if (req.session.userId) {
-
-    // Si l'ID de l'utilisateur existe, renvoie la réponse JSON avec l'ID
-    res.json({ userId: req.session.userId });
+    try {
+      const result = await db.query('SELECT is_admin FROM Utilisateurs WHERE id = $1', [req.session.userId]);
+      const isAdmin = result.rows[0].is_admin;
+      res.json({ userId: req.session.userId, isAdmin });
+    } catch (err) {
+      console.error(err);
+      res.status(500).send('Erreur lors de la récupération des informations utilisateur');
+    }
   } else {
-
-    // Si l'ID de l'utilisateur n'existe pas, renvoie une réponse avec un statut HTTP 401 (Non autorisé)
     res.status(401).send('Utilisateur non authentifié');
   }
 });
 
-
 // Route de l'accueil, redirige vers la page de connexion
 app.get('/', (req, res) => {
-
-  // Redirige l'utilisateur vers la page de connexion
   res.redirect('/login');
 });
 
-
 // Route GET pour la page de connexion, renvoie le fichier HTML de connexion
-app.get('/login', (req, res) => {// Renvoie le fichier HTML de connexion situé dans le répertoire 'public'
-
-  // Renvoie le fichier HTML de connexion situé dans le répertoire 'public'
+app.get('/login', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
 // Route pour traiter la soumission du formulaire de connexion
 app.post('/login', async (req, res) => {
   try {
-
-    // Récupère les données d'email et de mot de passe du corps de la requête
     const { email, password } = req.body;
     console.log(req.body);
-
-    // Requête pour rechercher un utilisateur dans la base de données avec l'email donné
     const user = await db.query('SELECT * FROM Utilisateurs WHERE email = $1', [email]);
 
-    console.log("Utilisateur trouvé :", user.rows[0]);      //! Pour débogage
-    console.log("Mot de passe fourni :", password);         //! Pour débogage
-    console.log("Résultat de la requête :", user.rows);     //! Pour débogage
+    console.log("Utilisateur trouvé :", user.rows[0]);
+    console.log("Mot de passe fourni :", password);
+    console.log("Résultat de la requête :", user.rows);
 
-    // Si un utilisateur est trouvé avec cet email
     if (user.rows.length > 0) {
-
-      // Vérifie si le mot de passe fourni correspond au mot de passe haché dans la base de données
       const isValid = await bcrypt.compare(password, user.rows[0].mot_de_passe);
 
       if (isValid) {
-
-        // Si le mot de passe est valide, défini l'ID de l'utilisateur dans la session
         req.session.userId = user.rows[0].id;
-
-        // Redirige l'utilisateur vers la page du quiz
-        res.redirect('/quizz');
-        console.log("Connexion réussie normalement");       //! Pour débogage
+        res.json({ success: true, isAdmin: user.rows[0].is_admin });
       } else {
-
-        // Si le mot de passe n'est pas valide, renvoie une réponse avec un statut HTTP 400 (Bad Request)
         res.status(400).json({ error: "Identifiant ou mot de passe incorrect" });
-        console.log("Mot de passe incorrect");              //! Pour débogage
+        console.log("Mot de passe incorrect");
       }
     } else {
-
-      // Si aucun utilisateur n'est trouvé avec cet email, renvoie une réponse avec un statut HTTP 400 (Bad Request)
       res.status(400).json({ error: "Identifiant ou mot de passe incorrect" });
-      console.log("Utilisateur non trouvé");                //! Pour débogage
+      console.log("Utilisateur non trouvé");
     }
   } catch (err) {
-
-    // En cas d'erreur lors de la vérification de l'utilisateur, renvoie une réponse avec un statut HTTP 500 (Internal Server Error)
     console.error("Erreur lors de la vérification de l'utilisateur :", err);
     res.status(500).json({ error: "Erreur lors de la connexion." });
   }
@@ -104,62 +91,40 @@ app.post('/login', async (req, res) => {
 
 // Route GET pour la page d'inscription, renvoie le fichier HTML d'inscription
 app.get('/signup', (req, res) => {
-
-  // Renvoie le fichier HTML de la page d'inscription situé dans le répertoire 'public'
   res.sendFile(path.join(__dirname, 'public', 'signup.html'));
 });
 
 // Route pour traiter la soumission du formulaire d'inscription
 app.post('/signup', async (req, res) => {
   try {
-
-    // Récupère les données du formulaire (nom, email, mot de passe)
     const { name, email, password } = req.body;
-
-    // Hache le mot de passe avant de le stocker dans la base de données
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Insère le nouvel utilisateur dans la base de données avec le mot de passe haché
     const newUser = await db.query(
       'INSERT INTO Utilisateurs (nom, email, mot_de_passe) VALUES ($1, $2, $3) RETURNING *',
       [name, email, hashedPassword]
     );
 
-    // Redirige l'utilisateur vers la page de connexion après l'inscription réussie
     res.redirect('/login');
     console.log("Ajout du nouvel utilisateur dans la base de données réussie")
   } catch (err) {
-
-    // En cas d'erreur lors de l'inscription, affiche l'erreur dans la console
     console.error(err);
-
-    // Renvoie une réponse avec un statut HTTP 500 (Internal Server Error)
     res.status(500).send("Erreur lors de l'inscription.");
   }
 });
 
 // Route GET pour la page de quizz, renvoie le fichier HTML de quizz
 app.get('/quizz', (req, res) => {
-
-  // Renvoie le fichier HTML de la page de quiz situé dans le répertoire 'public'
   res.sendFile(path.join(__dirname, 'public', 'quizz.html'));
 });
 
 // Route pour obtenir la liste des utilisateurs depuis la base de données
 app.get('/utilisateur', async (req, res) => {
   try {
-
-    // Effectue une requête pour sélectionner tous les utilisateurs dans la base de données
     const result = await db.query('SELECT * FROM Utilisateurs');
-
-    // Renvoie les données des utilisateurs sous forme de réponse JSON
     res.json(result.rows);
   } catch (err) {
-
-    // En cas d'erreur lors de la récupération des utilisateurs, affiche l'erreur dans la console
     console.error(err);
-
-    // Renvoie une réponse avec un statut HTTP 500 (Internal Server Error)
     res.status(500).send('Erreur interne du serveur');
   }
 });
@@ -167,18 +132,10 @@ app.get('/utilisateur', async (req, res) => {
 // Route GET pour obtenir la liste des questions depuis la base de données
 app.get('/api/questions', async (req, res) => {
   try {
-
-    // Effectue une requête pour sélectionner toutes les questions dans la base de données
     const questions = await db.query('SELECT * FROM Questions');
-
-    // Renvoie les données des questions sous forme de réponse JSON
     res.json(questions.rows);
   } catch (err) {
-
-    // En cas d'erreur lors de la récupération des questions, affiche l'erreur dans la console
     console.error(err);
-
-    // Renvoie une réponse avec un statut HTTP 500 (Internal Server Error)
     res.status(500).send('Erreur serveur');
   }
 });
@@ -186,66 +143,152 @@ app.get('/api/questions', async (req, res) => {
 // Route POST pour mettre à jour le score de l'utilisateur
 app.post('/api/update-score', async (req, res) => {
   try {
-
-    // Récupère les données de l'utilisateur (ID et score) depuis le corps de la requête
     const { userId, score } = req.body;
-
-    // Effectue une requête pour obtenir le score actuel de l'utilisateur
     const result = await db.query('SELECT score FROM Utilisateurs WHERE id = $1', [userId]);
     const currentScore = result.rows[0].score;
 
-    // Compare le nouveau score avec le score actuel
     if (score > currentScore) {
-
-      // Si le nouveau score est supérieur, met à jour le score de l'utilisateur dans la base de données
       await db.query('UPDATE Utilisateurs SET score = $1 WHERE id = $2', [score, userId]);
       res.json({ message: 'Score mis à jour avec succès' });
     } else {
-
-      // Si le nouveau score n'est pas supérieur, renvoie un message indiquant que le score n'a pas été mis à jour
       res.json({ message: 'Le score n\'a pas été mis à jour car il est inférieur au score actuel' });
     }
   } catch (err) {
-
-    // En cas d'erreur lors de la mise à jour du score, affiche l'erreur dans la console
     console.error(err);
-
-    // Renvoie une réponse avec un statut HTTP 500 (Internal Server Error)
     res.status(500).send('Erreur lors de la mise à jour du score');
   }
 });
 
 // Route GET pour obtenir le score de l'utilisateur
 app.get('/api/get-user-score', async (req, res) => {
-
-  // Vérifie si l'utilisateur est authentifié en vérifiant la présence de l'ID de session
   if (req.session.userId) {
     try {
-
-      // Effectue une requête pour obtenir le score de l'utilisateur à partir de son ID de session
       const result = await db.query('SELECT score FROM Utilisateurs WHERE id = $1', [req.session.userId]);
       const userScore = result.rows[0].score;
-
-      // Renvoie le score de l'utilisateur sous forme de réponse JSON
       res.json({ score: userScore });
     } catch (err) {
-
-      // En cas d'erreur lors de la récupération du score, affiche l'erreur dans la console
       console.error(err);
-
-      // Renvoie une réponse avec un statut HTTP 500 (Internal Server Error)
       res.status(500).send('Erreur lors de la récupération du score');
     }
   } else {
-
-    // Si l'utilisateur n'est pas authentifié, renvoie une réponse avec un statut HTTP 401 (Non autorisé)
     res.status(401).send('Utilisateur non authentifié');
   }
 });
 
+// Route pour la page d'administration
+app.get('/admin', (req, res) => {
+  if (req.session.userId) {
+    db.query('SELECT is_admin FROM Utilisateurs WHERE id = $1', [req.session.userId])
+      .then(result => {
+        if (result.rows.length > 0 && result.rows[0].is_admin) {
+          res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+        } else {
+          res.status(403).send('Accès refusé');
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        res.status(500).send('Erreur serveur');
+      });
+  } else {
+    res.redirect('/login');
+  }
+});
+
+// Route pour obtenir la liste des utilisateurs depuis la base de données
+app.get('/api/utilisateurs', async (req, res) => {
+  try {
+    const result = await db.query('SELECT id, nom, email, score FROM Utilisateurs');
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Erreur interne du serveur');
+  }
+});
+
+// Route GET pour obtenir la liste des questions depuis la base de données
+app.get('/api/questions', async (req, res) => {
+  try {
+    const questions = await db.query('SELECT * FROM Questions');
+    res.json(questions.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Erreur serveur');
+  }
+});
+
+// Route POST pour ajouter une nouvelle question
+app.post('/api/questions', async (req, res) => {
+  try {
+    const { question, reponse_correcte, fausse_reponse_un, fausse_reponse_deux, fausse_reponse_trois } = req.body;
+    await db.query(
+      'INSERT INTO Questions (question, reponse_correcte, fausse_reponse_un, fausse_reponse_deux, fausse_reponse_trois) VALUES ($1, $2, $3, $4, $5)',
+      [question, reponse_correcte, fausse_reponse_un, fausse_reponse_deux, fausse_reponse_trois]
+    );
+    res.status(201).send('Question ajoutée');
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Erreur lors de l\'ajout de la question');
+  }
+});
+
+// Route DELETE pour supprimer une question
+app.delete('/api/questions/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.query('DELETE FROM Questions WHERE id = $1', [id]);
+    res.status(200).send('Question supprimée');
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Erreur lors de la suppression de la question');
+  }
+});
+
+// Route DELETE pour supprimer un utilisateur
+app.delete('/api/utilisateurs/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.query('DELETE FROM Utilisateurs WHERE id = $1', [id]);
+    res.status(200).send('Utilisateur supprimé');
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Erreur lors de la suppression de l\'utilisateur');
+  }
+});
+
+// Route PUT pour modifier une question
+app.put('/api/questions/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { question, reponse_correcte, fausse_reponse_un, fausse_reponse_deux, fausse_reponse_trois } = req.body;
+    await db.query(
+      'UPDATE Questions SET question = $1, reponse_correcte = $2, fausse_reponse_un = $3, fausse_reponse_deux = $4, fausse_reponse_trois = $5 WHERE id = $6',
+      [question, reponse_correcte, fausse_reponse_un, fausse_reponse_deux, fausse_reponse_trois, id]
+    );
+    res.status(200).send('Question modifiée');
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Erreur lors de la modification de la question');
+  }
+});
+
+// Route PUT pour remettre à zéro le score d'un utilisateur
+app.put('/api/utilisateurs/:id/reset-score', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.query('UPDATE Utilisateurs SET score = 0 WHERE id = $1', [id]);
+    res.status(200).send('Score remis à zéro');
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Erreur lors de la remise à zéro du score');
+  }
+});
+
+
+// Route pour gérer la demande du fichier favicon.ico
+app.get('/favicon.ico', (req, res) => res.status(204));
+
 // Lancement du serveur sur le port spécifié
 app.listen(port, () => {
-
-  // Une fois le serveur lancé, affiche un message dans la console avec l'URL du serveur
   console.log(`Le serveur est lancé sur http://localhost:${port}`);
 });
